@@ -1,0 +1,97 @@
+#!/bin/bash
+
+# Demande à l'utilisateur de fournir le fichier contenant les cibles ou une cible individuelle
+read -e -p "Enter path to file containing targets (e.g., all_subdomains.txt) or leave blank: " TARGET_FILE
+read -e -p "Enter an individual target (e.g., a specific IP or domain) or leave blank: " SINGLE_TARGET
+read -e -p "Enter the name for the final output file or leave blank for default naming: " FINAL_OUTPUT_FILE
+
+# Validation des inputs
+if [ -z "$TARGET_FILE" ] && [ -z "$SINGLE_TARGET" ]; then
+    echo "Error: Please provide either a target file or an individual target."
+    exit 1
+fi
+
+# Affiche le menu des options de scan Nmap
+echo "Choose an Nmap scan type:"
+echo "1 - Scan Agressif Complet"
+echo "2 - Scan Stealth avec Évasion de Firewall"
+echo "3 - Scan Sélectif de Ports Communs"
+echo "4 - Scan avec Faux Adresses IP"
+echo "5 - Scan UDP avec Timing Agressif"
+echo "6 - Scan de Réseau avec Exclusion de Cibles"
+echo "7 - Scan avec Spoofing de Source et Port"
+echo "8 - Scan et Trace de Route"
+echo "9 - Scan IPv6 Agressif"
+echo "10 - Scan avec Limitation de Temps"
+echo "11 - Enter Custom Nmap Options"
+
+# Demande à l'utilisateur de choisir une option de scan
+read -p "Enter your choice [1-11]: " SCAN_CHOICE
+
+# Définit la commande Nmap en fonction du choix de l'utilisateur
+case $SCAN_CHOICE in
+    1)
+        NMAP_CMD="-sCV -A -p- --min-rate 1000"
+        ;;
+    2)
+        NMAP_CMD="-sS -f -T4"
+        ;;
+    3)
+        NMAP_CMD="-sV --top-ports 100"
+        ;;
+    4)
+        NMAP_CMD="-sS -D decoy1,decoy2,decoy3"
+        ;;
+    5)
+        NMAP_CMD="-sU -T4 --max-retries 1"
+        ;;
+    6)
+        read -p "Enter IPs to exclude (comma-separated): " EXCLUDE_IPS
+        NMAP_CMD="--exclude $EXCLUDE_IPS"
+        ;;
+    7)
+        read -p "Enter the source IP to spoof: " SPOOF_IP
+        read -p "Enter the source port to use: " SPOOF_PORT
+        NMAP_CMD="-sS -S $SPOOF_IP -g $SPOOF_PORT"
+        ;;
+    8)
+        NMAP_CMD="-sS --traceroute"
+        ;;
+    9)
+        NMAP_CMD="-6 -A"
+        ;;
+    10)
+        NMAP_CMD="-sS --host-timeout 30s"
+        ;;
+    11)
+        read -p "Enter your custom Nmap options: " CUSTOM_NMAP_CMD
+        NMAP_CMD="$CUSTOM_NMAP_CMD"
+        ;;
+    *)
+        NMAP_CMD=""  # Nmap default scan
+        ;;
+esac
+
+# Exécute la commande Nmap
+NMAP_RESULTS="nmap_results_temp.txt"
+if [ -n "$TARGET_FILE" ]; then
+    nmap -iL $TARGET_FILE $NMAP_CMD -oN $NMAP_RESULTS
+fi
+
+if [ -n "$SINGLE_TARGET" ]; then
+    nmap $SINGLE_TARGET $NMAP_CMD -oN $NMAP_RESULTS
+fi
+
+# Déplace les résultats dans le répertoire final
+if [ -f "$NMAP_RESULTS" ]; then
+    mkdir -p $HOME/Recon/Target
+    if [ -z "$FINAL_OUTPUT_FILE" ]; then
+        FINAL_RESULTS="$HOME/Recon/Target/${SINGLE_TARGET}_scan.txt"
+    else
+        FINAL_RESULTS="$HOME/Recon/Target/${FINAL_OUTPUT_FILE}.txt"
+    fi
+    mv $NMAP_RESULTS $FINAL_RESULTS
+    echo "Scanning complete. Results saved in $FINAL_RESULTS."
+else
+    echo "No nmap results found."
+fi
